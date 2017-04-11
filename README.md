@@ -34,7 +34,7 @@ The following dependencies should be installed before compilation:
   packages should provide necessary Boost libraries: 
   `libboost-dev, libboost-system-dev, libboost-filesystem-dev`.
 
-- CMake 3.2 or later
+- CMake 3.2 or later for reliably detecting OpenCL and libboost.
 
 Currently only building on Linux has been tested, but it should also work with
 MinGW on Windows as long as all dependencies are available. To build LightGBM-GPU,
@@ -130,13 +130,13 @@ num_leaves = 255
 num_iterations = 500
 learning_rate = 0.1
 tree_learner = serial
-device = gpu
 task = train
 is_train_metric = false
 min_data_in_leaf = 1
 min_sum_hessian_in_leaf = 100
 ndcg_eval_at = 1,3,5,10
 sparse_threshold=1.0
+device = gpu
 
 gpu_platform_id = 0
 gpu_device_id = 0
@@ -153,7 +153,7 @@ How to Achieve Good Speedup on GPU
 --------------------------
 
 1. You want to run a few datasets that we have verified with good speedup
-   (including Higgs, epsilon, Microsoft Learning to Rank, etc) to ensure your
+   (including Higgs, epsilon, Bosch, etc) to ensure your
    setup is correct. Make sure your system is idle (especially when using a
    shared computer) to get accuracy performance measurements. 
 
@@ -212,13 +212,13 @@ num_leaves = 255
 num_iterations = 500
 learning_rate = 0.1
 tree_learner = serial
-device = gpu
 task = train
 is_train_metric = false
 min_data_in_leaf = 1
 min_sum_hessian_in_leaf = 100
 ndcg_eval_at = 1,3,5,10
 sparse_threshold = 1.0
+device = gpu
 gpu_platform_id = 0
 gpu_device_id = 0
 EOF
@@ -272,10 +272,10 @@ Performance Comparison
 --------------------------
 
 We used the following hardware to evaluate the performance of our GPU
-algorithm.  Our CPU reference is a high-end dual socket Haswell-EP Xeon server;
+algorithm.  Our CPU reference is **a high-end dual socket Haswell-EP Xeon server with 28 cores**;
 GPUs include a budget GPU (RX 480) and a mainstream (GTX 1080) GPU installed on
-the same server.  It is worth mentioning that our GPUs are not the best GPUs in
-the market; if you are using a better GPU (like AMD RX 580, NVIDIA GTX 1080 Ti,
+the same server.  It is worth mentioning that **the GPUs used are not the best GPUs in
+the market**; if you are using a better GPU (like AMD RX 580, NVIDIA GTX 1080 Ti,
 Titan X Pascal, Titan Xp, P100, etc), you are likely to get a better speedup.
 
 | Hardware                     | Peak FLOPS   | Peak Memory BW | Cost (MSRP) |
@@ -288,16 +288,19 @@ During benchmarking on CPU we used only 28 physical cores of the CPU, and did
 not use hyper-threading cores, because we found that using too many threads
 actually makes performance worse.
 
-We use the configuration described in the Datasets section above. For all GPU training we
-set `sparse_threshold=1`, and varying the max number of bins (255, 63 and 15).
-The GPU implementation is from commit `9602cd7e` of this repository, 
-and the CPU implementation is from commit `3beee91d` of LightGBM.
-The following tables shows dataset statistics.
+We use the configuration described in the Datasets section above, except for
+Bosch, where we use a smaller `learning_rate=0.015` and set
+`min_sum_hessian_in_leaf=5`. For all GPU training we set
+`sparse_threshold=1`, and vary the max number of bins (255, 63 and 15).  The
+GPU implementation is from commit
+[0bb4a82](https://github.com/Microsoft/LightGBM/commit/0bb4a82)
+of LightGBM, when the GPU support was just merged in.
 
-| Data     |      Task     |  Link | #Train_Set | #Feature| Comments|
+| Data     |      Task     |  Link | #Examples | #Feature| Comments|
 |----------|---------------|-------|-------|---------|---------|
 | Higgs    |  Binary classification | [link](https://archive.ics.uci.edu/ml/datasets/HIGGS) |10,500,000|28| use last 500,000 samples as test set  | 
 | Epsilon  |  Binary classification | [link](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary.html) | 400,000 | 2,000 | use the provided test set |
+| Bosch    |  Binary classification | [link](https://www.kaggle.com/c/bosch-production-line-performance/data) | 1,000,000 | 968 | use the provided test set |
 | Yahoo LTR|  Learning to rank      | [link](https://webscope.sandbox.yahoo.com/catalog.php?datatype=c)     |473,134|700|   set1.train as train, set1.test as test |
 | MS LTR   |  Learning to rank      | [link](http://research.microsoft.com/en-us/projects/mslr/) |2,270,296|137| {S1,S2,S3} as train set, {S5} as test set |
 | Expo     |  Binary classification (Categorical) | [link](http://stat-computing.org/dataexpo/2009/) |11,000,000|700| use last 1,000,000 as test set |
@@ -309,22 +312,23 @@ arithmetic.  For most datasets, using 63 bins is sufficient.
 
 |                   | CPU 255 bins | CPU 63 bins | CPU 15 bins | GPU 255 bins | GPU 63 bins | GPU 15 bins |
 |-------------------|--------------|-------------|-------------|--------------|-------------|-------------|
-| Higgs AUC         | 0.846132     | 0.845311    | 0.84087     | 0.84523      | 0.845428    | 0.840548    |
-| Epsilon AUC       | 0.950452     | 0.950097    | 0.94823     | 0.950199     | 0.950109    | 0.947978    |
-| Expo AUC          | 0.776091     | 0.770014    | 0.743602    | 0.775943     | 0.772696    | 0.743317    |
-| MS-LTR NDCG@1     | 0.521135     | 0.523852    | 0.517996    | 0.521614     | 0.521099    | 0.52055     |
-| MS-LTR NDCG@3     | 0.504635     | 0.505756    | 0.502495    | 0.505045     | 0.50397     | 0.503641    |
-| MS-LTR NDCG@5     | 0.508776     | 0.510531    | 0.507656    | 0.509656     | 0.50904     | 0.50889     |
-| MS-LTR NDCG@10    | 0.526651     | 0.52749     | 0.524527    | 0.527411     | 0.526226    | 0.525855    |
-| Yahoo-LTR NGCG@1  | 0.732531     | 0.729834    | 0.732634    | 0.73133      | 0.732279    | 0.731965    |
-| Yahoo-LTR NGCG@3  | 0.739642     | 0.737349    | 0.737533    | 0.737912     | 0.738382    | 0.736739    |
-| Yahoo-LTR NGCG@5  | 0.756766     | 0.755554    | 0.755182    | 0.755944     | 0.756303    | 0.754295    |
-| Yahoo-LTR NGCG@10 | 0.796924     | 0.795605    | 0.795454    | 0.796339     | 0.796369    | 0.795321    |
+| Higgs AUC         | 0.845612     | 0.845239    | 0.841066    | 0.845612     | 0.845209    | 0.840748    |
+| Epsilon AUC       | 0.950243     | 0.949952    | 0.948365    | 0.950057     | 0.949876    | 0.948365    |
+| Yahoo-LTR NDCG@1  | 0.730824     | 0.730165    | 0.729647    | 0.730936     | 0.732257    | 0.73114     |
+| Yahoo-LTR NDCG@3  | 0.738687     | 0.737243    | 0.736445    | 0.73698      | 0.739474    | 0.735868    |
+| Yahoo-LTR NDCG@5  | 0.756609     | 0.755729    | 0.754607    | 0.756206     | 0.757007    | 0.754203    |
+| Yahoo-LTR NDCG@10 | 0.79655      | 0.795827    | 0.795273    | 0.795894     | 0.797302    | 0.795584    |
+| Expo AUC          | 0.776217     | 0.771566    | 0.743329    | 0.776285     | 0.77098     | 0.744078    |
+| MS-LTR NDCG@1     | 0.521265     | 0.521392    | 0.518653    | 0.521789     | 0.522163    | 0.516388    |
+| MS-LTR NDCG@3     | 0.503153     | 0.505753    | 0.501697    | 0.503886     | 0.504089    | 0.501691    |
+| MS-LTR NDCG@5     | 0.509236     | 0.510391    | 0.507193    | 0.509861     | 0.510095    | 0.50663     |
+| MS-LTR NDCG@10    | 0.527835     | 0.527304    | 0.524603    | 0.528009     | 0.527059    | 0.524722    |
+| Bosch AUC         | 0.718115     | 0.721791    | 0.716677    | 0.717184     | 0.724761    | 0.717005    |
 
 
 We record the wall clock time after 500 iterations, as shown in the figure below:
 
-![Performance Comparison](http://www.huan-zhang.com/images/upload/lightgbm-gpu/compare_9602cd7e.png)
+![Performance Comparison](http://www.huan-zhang.com/images/upload/lightgbm-gpu/compare_0bb4a825.png)
 
 When using a GPU, it is advisable to use a bin size of 63 rather than 255,
 because it can speed up training significantly without noticeably affecting
@@ -336,13 +340,16 @@ dense datasets like Higgs and Epsilon.  Even on smaller and sparse datasets,
 a *budget* GPU can still compete and be faster than a 28-core Haswell server.
 
 The next table shows GPU memory usage reported by `nvidia-smi` during training
-with 63 bins.  We can see that no datasets use more than 1 GB of GPU
-memory, indicating that our GPU implementation can scale very well on
-huge datasets over 10x larger than Higgs or Epsilon.
+with 63 bins.  We can see that even the largest dataset just uses about 1 GB of
+GPU memory, indicating that **our GPU implementation can scale to huge
+datasets over 10x larger than Bosch or Epsilon**.  Also, we can observe that
+generally **a larger dataset** (using more GPU memory, like Epsilon or Bosch)
+**has better speedup**, because the overhead of invoking GPU functions becomes
+significant when the dataset is small.
 
-| Datasets              | Higgs | Epsilon | MS-LTR | Yahoo-LTR | Expo |
-|-----------------------|-------|---------|--------|-----------|------|
-| GPU Memory Usage (MB) | 611   | 901     | 413    | 291       | 405  |
+| Datasets              | Higgs | Epsilon | Bosch  |  MS-LTR |  Expo |Yahoo-LTR |
+|-----------------------|-------|---------|--------|---------|-------|----------|
+| GPU Memory Usage (MB) | 611   | 901     |  1067  |   413   |  405  |  291     |
 
 
 Further Reading
