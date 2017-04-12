@@ -34,8 +34,7 @@ public:
   * \brief Calcaluting and printing metric result
   * \param score Current prediction score
   */
-  virtual std::vector<double> Eval(const double* score, const ObjectiveFunction* objective,
-                                   int num_tree_per_iteration) const = 0;
+  virtual std::vector<double> Eval(const double* score, const ObjectiveFunction* objective) const = 0;
 
   Metric() = default;
   /*! \brief Disable copy */
@@ -114,8 +113,6 @@ public:
   inline static double GetDiscount(data_size_t k) { return discount_[k]; }
 
 private:
-  /*! \brief True if inited, avoid init multi times */
-  static bool is_inited_;
   /*! \brief store gains for different label */
   static std::vector<double> label_gain_;
   /*! \brief store discount score for different position */
