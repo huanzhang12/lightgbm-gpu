@@ -243,6 +243,8 @@ wget http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/epsilon_norma
 bunzip2 epsilon_normalized.bz2 
 wget http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/epsilon_normalized.t.bz2
 bunzip2 epsilon_normalized.t.bz2
+sed -i 's/^-1 /0 /g' epsilon_normalized
+sed -i 's/^-1 /0 /g' epsilon_normalized.t
 mv epsilon_normalized epsilon.train
 mv epsilon_normalized.t epsilon.test
 # datasets are ready, now start training
